@@ -1,0 +1,60 @@
+python main.py
+3D: Загрузка данных для 3а, 2026-02-14 - 2026-03-14
+3D: Загружено 1716 записей
+on_tab_changed: индекс 5
+Переключение на вкладку 'Самые горячие датчики'
+Дельта температур: дата=2026-03-11, порог=1.0, период=7 дн.
+Получено данных по силосам: 16
+Силоса: ['1а', '1б', '2а', '2б', '3а', '3б', '4а', '4б', '5а', '5б', '6а', '6б', '7а', '7б', '8а', '8б']
+Комментарии: {'1а': False, '1б': False, '2а': False, '2б': False, '3а': False, '3б': False, '4а': False, '4б': True, '5а': False, '5б': False, '6а': False, '6б': True, '7а': False, '7б': False, '8а': False, '8б': False}
+update_silos вызван с silos_data: 16 силосов
+date: 2026-03-11, comments: {'1а': False, '1б': False, '2а': False, '2б': False, '3а': False, '3б': False, '4а': False, '4б': True, '5а': False, '5б': False, '6а': False, '6б': True, '7а': False, '7б': False, '8а': False, '8б': False}
+Пропущен оперативный силос: 1а
+Пропущен оперативный силос: 1б
+Пропущен оперативный силос: 2а
+Пропущен оперативный силос: 2б
+Силос 3а: temp=-14.7, delta=1.3999999999999986, has_comment=False
+Силос 3б: temp=45.2, delta=-5.300000000000001, has_comment=False
+Силос 4а: temp=54.5, delta=13.799999999999997, has_comment=False
+Силос 4б: temp=37.8, delta=-50.1, has_comment=True
+Силос 5а: temp=7.3, delta=5.4, has_comment=False
+Силос 5б: temp=14.6, delta=5.799999999999999, has_comment=False
+Силос 6а: temp=0.7, delta=-1.799999999999999, has_comment=False
+Силос 6б: temp=19.8, delta=7.0, has_comment=True
+Силос 7а: temp=-4.0, delta=-12.700000000000001, has_comment=False
+Силос 7б: temp=38.7, delta=3.8, has_comment=False
+Силос 8а: temp=38.2, delta=-3.6999999999999997, has_comment=False
+Силос 8б: temp=23.1, delta=-0.8000000000000007, has_comment=False
+Линия А: 6 силосов, Линия Б: 6 силосов
+Дельта температур: дата=2026-03-11, порог=1.0, период=7 дн.
+Получено данных по силосам: 16
+Силоса: ['1а', '1б', '2а', '2б', '3а', '3б', '4а', '4б', '5а', '5б', '6а', '6б', '7а', '7б', '8а', '8б']
+Комментарии: {'1а': False, '1б': False, '2а': False, '2б': False, '3а': False, '3б': False, '4а': False, '4б': True, '5а': False, '5б': False, '6а': False, '6б': True, '7а': False, '7б': False, '8а': False, '8б': False}
+update_silos вызван с silos_data: 16 силосов
+date: 2026-03-11, comments: {'1а': False, '1б': False, '2а': False, '2б': False, '3а': False, '3б': False, '4а': False, '4б': True, '5а': False, '5б': False, '6а': False, '6б': True, '7а': False, '7б': False, '8а': False, '8б': False}
+Пропущен оперативный силос: 1а
+Пропущен оперативный силос: 1б
+Пропущен оперативный силос: 2а
+Пропущен оперативный силос: 2б
+Силос 3а: temp=-14.7, delta=1.3999999999999986, has_comment=False
+Силос 3б: temp=45.2, delta=-5.300000000000001, has_comment=False
+Силос 4а: temp=54.5, delta=13.799999999999997, has_comment=False
+Силос 4б: temp=37.8, delta=-50.1, has_comment=True
+Силос 5а: temp=7.3, delta=5.4, has_comment=False
+Силос 5б: temp=14.6, delta=5.799999999999999, has_comment=False
+Силос 6а: temp=0.7, delta=-1.799999999999999, has_comment=False
+Силос 6б: temp=19.8, delta=7.0, has_comment=True
+Силос 7а: temp=-4.0, delta=-12.700000000000001, has_comment=False
+Силос 7б: temp=38.7, delta=3.8, has_comment=False
+Силос 8а: temp=38.2, delta=-3.6999999999999997, has_comment=False
+Силос 8б: temp=23.1, delta=-0.8000000000000007, has_comment=False
+Линия А: 6 силосов, Линия Б: 6 силосов
+[7108:4060:0314/053315.720:ERROR:direct_composition_support.cc(1122)] QueryInterface to IDCompositionDevice4 failed: ╨Ш╨╜╤В╨╡╤А╤Д╨╡╨╣╤Б ╨╜╨╡ ╨┐╨╛╨┤╨┤╨╡╤А╨╢╨╕╨▓╨░╨╡╤В╤Б╤П (0x80004002)
+js: Canvas2D: Multiple readback operations using getImageData are faster with the willReadFrequently attribute set to true. See: https://html.spec.whatwg.org/multipage/canvas.html#concept-canvas-will-read-frequently
+Traceback (most recent call last):
+  File "C:\Users\─рэхъ\Desktop\autobot\ЄхЁьюьхЄЁш \email_dialogs.py", line 358, in start_download
+    self.log("╚эшЎшрышчрЎш  чруЁєчъш...")
+    ^^^^^^^^
+AttributeError: 'EmailDownloadDialog' object has no attribute 'log'
+
+C:\Users\Данек\Desktop\autobot\термометрия>

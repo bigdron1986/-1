@@ -1,0 +1,14 @@
+{
+  "temp_threshold": 15.0,
+  "window_width": 1536,
+  "window_height": 801,
+  "start_date": "2026-03-23",
+  "end_date": "2026-03-29",
+  "active_tab": 5,
+  "splitter_sizes": [
+    780,
+    724
+  ],
+  "openweathermap_api_key": "3c1275bf-5761-48cc-900e-f2f307ec666a",
+  "weather_last_data": null
+}

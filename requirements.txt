@@ -1,0 +1,11 @@
+# requirements.txt
+PyQt6
+openpyxl
+pandas
+matplotlib
+sqlalchemy
+fpdf
+Pillow
+pyinstaller
+plotly
+kaleido
