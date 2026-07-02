@@ -8,6 +8,7 @@ from PyQt6.QtWidgets import (QDialog, QVBoxLayout, QHBoxLayout, QPushButton, QLa
                              QTextEdit, QProgressBar)
 from PyQt6.QtCore import Qt, QThread, pyqtSignal
 from email_client import EmailReportClient, test_email_connection
+from env_loader import get_env
 
 
 class EmailSettingsDialog(QDialog):
@@ -16,6 +17,7 @@ class EmailSettingsDialog(QDialog):
     def __init__(self, parent=None, settings=None):
         super().__init__(parent)
         self.settings = settings or {}
+        self._apply_env_defaults()
         
         self.setWindowTitle("📧 Настройки почты")
         self.setMinimumWidth(450)
@@ -23,6 +25,20 @@ class EmailSettingsDialog(QDialog):
         
         self.initUI()
     
+    def _apply_env_defaults(self):
+        if not self.settings.get('login'):
+            self.settings['login'] = get_env('EMAIL_LOGIN')
+        if not self.settings.get('password'):
+            self.settings['password'] = get_env('EMAIL_PASSWORD')
+        if not self.settings.get('imap_server') or self.settings['imap_server'] == 'imap.yandex.ru':
+            self.settings['imap_server'] = get_env('EMAIL_IMAP_SERVER', 'imap.yandex.ru')
+        if not self.settings.get('imap_port') or self.settings['imap_port'] == 993:
+            self.settings['imap_port'] = int(get_env('EMAIL_IMAP_PORT', '993'))
+        if not self.settings.get('sender_email') or self.settings['sender_email'] == 'ams10@aminosib.ru':
+            self.settings['sender_email'] = get_env('EMAIL_SENDER', 'ams10@aminosib.ru')
+        if not self.settings.get('days_back') or self.settings['days_back'] == 30:
+            self.settings['days_back'] = int(get_env('EMAIL_DAYS_BACK', '30'))
+
     def initUI(self):
         layout = QVBoxLayout()
         layout.setSpacing(15)
