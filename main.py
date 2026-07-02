@@ -24,15 +24,14 @@ from styles import STYLESHEET
 from config import load_config, save_config
 from dialogs import ExportDropdownButton
 
-# Импортируем миксины
-from app.hotspots_tab import HotspotsTabMixin, AdvancedPlotWidget
-from app.silo_graphs_tab import SiloGraphsTabMixin
-from app.monitoring_breaks_tab import MonitoringTabMixin, BreaksTabMixin
-from app.model_3d_tab import Model3DTabMixin
-from app.hottest_sensors_tab import HottestSensorsTabMixin
-from app.email_file import EmailFileMixin
+from app.shared import TabContext
+from app.hotspots_tab import HotspotsTab, AdvancedPlotWidget
+from app.silo_graphs_tab import SiloGraphsTab
+from app.monitoring_breaks_tab import MonitoringTab, BreaksTab
+from app.model_3d_tab import Model3DTab
+from app.hottest_sensors_tab import HottestSensorsTab
+from app.email_file import EmailFileService
 
-# Импортируем FullScreen3DDialog
 try:
     from plotly_widget import PlotlyWidget
     PLOTLY_AVAILABLE = True
@@ -41,7 +40,6 @@ except ImportError:
 
 
 def setup_global_logging():
-    """Настроить глобальное логирование до создания приложения"""
     log_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'logs')
     os.makedirs(log_dir, exist_ok=True)
     log_file = os.path.join(log_dir, f'app_{datetime.now().strftime("%Y%m%d_%H%M%S")}.log')
@@ -62,7 +60,6 @@ def setup_global_logging():
 
 
 def global_exception_handler(exc_type, exc_value, exc_tb):
-    """Глобальный обработчик необработанных исключений"""
     if issubclass(exc_type, KeyboardInterrupt):
         sys.__excepthook__(exc_type, exc_value, exc_tb)
         return
@@ -70,7 +67,6 @@ def global_exception_handler(exc_type, exc_value, exc_tb):
     tb_str = ''.join(traceback.format_exception(exc_type, exc_value, exc_tb))
     logging.critical(f"НЕОБРАБОТАННОЕ ИСКЛЮЧЕНИЕ:\n{tb_str}")
 
-    # Показать пользователю
     try:
         from PyQt6.QtWidgets import QMessageBox
         msg = QMessageBox()
@@ -85,62 +81,42 @@ def global_exception_handler(exc_type, exc_value, exc_tb):
 
 
 class PyQtExceptionHandler:
-    """Перехватчик исключений для слотов PyQt"""
     def __init__(self):
         self._original_hook = None
 
     def install(self):
-        """Установить перехватчик"""
         self._original_hook = sys.excepthook
         sys.excepthook = global_exception_handler
 
 
-class ThermometryApp(
-    HotspotsTabMixin,
-    SiloGraphsTabMixin,
-    MonitoringTabMixin,
-    BreaksTabMixin,
-    Model3DTabMixin,
-    HottestSensorsTabMixin,
-    EmailFileMixin,
-    QWidget
-):
+class ThermometryApp(QWidget):
     """Главное приложение термометрии"""
-    
+
     def __init__(self):
         super().__init__()
         logging.info("Инициализация ThermometryApp...")
         try:
-            self.db_conn = setup_database("temperatures.db")
+            db_conn = setup_database("temperatures.db")
             logging.info("База данных подключена")
         except Exception as e:
             logging.critical(f"Ошибка подключения к БД: {e}")
             raise
 
         try:
-            self.config = load_config()
-            self.user_settings = get_all_user_settings(self.db_conn)
+            config = load_config()
+            user_settings = get_all_user_settings(db_conn)
             logging.info("Конфигурация загружена")
         except Exception as e:
             logging.critical(f"Ошибка загрузки конфигурации: {e}")
             raise
-        
+
+        self.ctx = TabContext(db_conn, config, user_settings)
+
         self.setWindowTitle("🌡️ Термометрия — Контроль температуры в силосах")
-        self.setGeometry(100, 100, self.config.get("window_width", 1400), self.config.get("window_height", 1000))
+        self.setGeometry(100, 100, config.get("window_width", 1400), config.get("window_height", 1000))
         self.setMinimumSize(1400, 900)
         self.setAcceptDrops(True)
-        
-        # Загрузка настроек из БД
-        self.temp_threshold = float(self.user_settings.get('temp_threshold', '15.0'))
-        self.change_threshold = float(self.user_settings.get('change_threshold', '3.0'))
-        self.date_format_with_year = self.user_settings.get('date_format_with_year', 'false') == 'true'
-        
-        # Цвета из настроек
-        self.color_hotspot = self.user_settings.get('color_hotspot', '#f38ba8')
-        self.color_error = self.user_settings.get('color_error', '#fab387')
-        self.color_normal = self.user_settings.get('color_normal', '#a6e3a1')
-        self.color_warning = self.user_settings.get('color_warning', '#f9e2af')
-        
+
         logging.info("Настройки загружены, создаю UI...")
         try:
             self.initUI()
@@ -151,48 +127,43 @@ class ThermometryApp(
             raise
 
         try:
-            self.populate_silo_filter()
-            self.update_date_range()
-            self.update_data_view()
+            self.email_service.populate_silo_filter()
+            self.email_service.update_date_range()
+            self.ctx.hotspots_tab.update_data_view()
             logging.info("Данные загружены")
         except Exception as e:
             logging.error(f"Ошибка загрузки данных: {e}")
             logging.error(traceback.format_exc())
-        
-        QTimer.singleShot(1000, self.check_leader_changes)
+
+        QTimer.singleShot(1000, self.ctx.hottest_sensors_tab.check_leader_changes)
         self.showMaximized()
         logging.info("Приложение запущено")
 
     def closeEvent(self, event):
-        """Сохранение настроек при закрытии"""
         try:
-            self.config["window_width"] = self.width()
-            self.config["window_height"] = self.height()
-            self.config["start_date"] = self.start_date_edit.date().toString("yyyy-MM-dd")
-            self.config["end_date"] = self.end_date_edit.date().toString("yyyy-MM-dd")
-            self.config["active_tab"] = self.main_tabs.currentIndex()
-            self.config["splitter_sizes"] = self.main_splitter.sizes()
-            save_config(self.config)
+            self.ctx.config["window_width"] = self.width()
+            self.ctx.config["window_height"] = self.height()
+            self.ctx.config["start_date"] = self.ctx.start_date_edit.date().toString("yyyy-MM-dd")
+            self.ctx.config["end_date"] = self.ctx.end_date_edit.date().toString("yyyy-MM-dd")
+            self.ctx.config["active_tab"] = self.ctx.main_tabs.currentIndex()
+            self.ctx.config["splitter_sizes"] = self.ctx.main_splitter.sizes()
+            save_config(self.ctx.config)
 
-            if hasattr(self, 'temp_threshold_spinbox'):
-                set_user_setting(self.db_conn, 'temp_threshold', str(self.temp_threshold_spinbox.value()))
-            if hasattr(self, 'change_threshold_spinbox'):
-                set_user_setting(self.db_conn, 'change_threshold', str(self.change_threshold_spinbox.value()))
-            if hasattr(self, 'show_year_check'):
-                set_user_setting(self.db_conn, 'date_format_with_year', 'true' if self.show_year_check.isChecked() else 'false')
-            if hasattr(self, 'graph_start_date') and self.graph_start_date:
-                set_user_setting(self.db_conn, 'graph_start_date', self.graph_start_date)
-            if hasattr(self, 'graph_end_date') and self.graph_end_date:
-                set_user_setting(self.db_conn, 'graph_end_date', self.graph_end_date)
-            if hasattr(self, 'color_hotspot'):
-                set_user_setting(self.db_conn, 'color_hotspot', self.color_hotspot)
-                set_user_setting(self.db_conn, 'color_error', self.color_error)
-                set_user_setting(self.db_conn, 'color_normal', self.color_normal)
-                set_user_setting(self.db_conn, 'color_warning', self.color_warning)
+            if self.ctx.temp_threshold_spinbox:
+                set_user_setting(self.ctx.db_conn, 'temp_threshold', str(self.ctx.temp_threshold_spinbox.value()))
+            if self.ctx.show_year_check:
+                set_user_setting(self.ctx.db_conn, 'date_format_with_year', 'true' if self.ctx.show_year_check.isChecked() else 'false')
+            if self.ctx.silo_graphs_tab and hasattr(self.ctx.silo_graphs_tab, 'graph_start_date'):
+                set_user_setting(self.ctx.db_conn, 'graph_start_date', self.ctx.silo_graphs_tab.graph_start_date)
+                set_user_setting(self.ctx.db_conn, 'graph_end_date', self.ctx.silo_graphs_tab.graph_end_date)
+            set_user_setting(self.ctx.db_conn, 'color_hotspot', self.ctx.color_hotspot)
+            set_user_setting(self.ctx.db_conn, 'color_error', self.ctx.color_error)
+            set_user_setting(self.ctx.db_conn, 'color_normal', self.ctx.color_normal)
+            set_user_setting(self.ctx.db_conn, 'color_warning', self.ctx.color_warning)
 
-            if self.db_conn:
-                self.db_conn.close()
-                self.db_conn = None
+            if self.ctx.db_conn:
+                self.ctx.db_conn.close()
+                self.ctx.db_conn = None
         except Exception as e:
             logging.error(f"closeEvent error: {e}")
         finally:
@@ -213,8 +184,8 @@ class ThermometryApp(
         top_bar.addWidget(title_label)
         top_bar.addStretch()
 
-        self.tabs_combo = QComboBox()
-        self.tabs_combo.addItems([
+        self.ctx.tabs_combo = QComboBox()
+        self.ctx.tabs_combo.addItems([
             "🔥 Горячие точки",
             "📈 Графики по силосам",
             "📊 Мониторинг изменений",
@@ -222,9 +193,9 @@ class ThermometryApp(
             "🏭 3D Модель",
             "🔥 Самые горячие датчики"
         ])
-        self.tabs_combo.setMaximumWidth(250)
-        self.tabs_combo.currentIndexChanged.connect(self.on_tabs_combo_changed)
-        self.tabs_combo.setStyleSheet("""
+        self.ctx.tabs_combo.setMaximumWidth(250)
+        self.ctx.tabs_combo.currentIndexChanged.connect(self._on_tabs_combo_changed)
+        self.ctx.tabs_combo.setStyleSheet("""
             QComboBox {
                 background-color: #89b4fa;
                 color: #1e1e2e;
@@ -233,13 +204,17 @@ class ThermometryApp(
                 border-radius: 6px;
             }
         """)
-        top_bar.addWidget(self.tabs_combo)
+        top_bar.addWidget(self.ctx.tabs_combo)
 
-        self.export_button = ExportDropdownButton(on_export_callback=self.handle_export)
-        top_bar.addWidget(self.export_button)
+        # Создаём сервис email/file (должен быть до виджетов, которые его используют)
+        self.email_service = EmailFileService(self.ctx)
+        self.ctx.email_file_mixin = self.email_service
 
-        self.email_button = QPushButton("📧 Почта ▼")
-        self.email_button.setStyleSheet("""
+        self.ctx.export_button = ExportDropdownButton(on_export_callback=self.email_service.handle_export)
+        top_bar.addWidget(self.ctx.export_button)
+
+        self.ctx.email_button = QPushButton("📧 Почта ▼")
+        self.ctx.email_button.setStyleSheet("""
             QPushButton {
                 background-color: #f38ba8;
                 color: #1e1e2e;
@@ -248,90 +223,90 @@ class ThermometryApp(
                 border-radius: 6px;
             }
         """)
-        self.email_button.setMinimumHeight(32)
-        self.email_button.clicked.connect(self.show_email_menu)
-        top_bar.addWidget(self.email_button)
+        self.ctx.email_button.setMinimumHeight(32)
+        self.ctx.email_button.clicked.connect(self.email_service.show_email_menu)
+        top_bar.addWidget(self.ctx.email_button)
 
-        self.load_button = QPushButton("📂 Загрузить отчеты")
-        self.load_button.setObjectName("loadButton")
-        self.load_button.setMinimumHeight(32)
-        self.load_button.clicked.connect(self.load_report_dialog)
-        top_bar.addWidget(self.load_button)
+        self.ctx.load_button = QPushButton("📂 Загрузить отчеты")
+        self.ctx.load_button.setObjectName("loadButton")
+        self.ctx.load_button.setMinimumHeight(32)
+        self.ctx.load_button.clicked.connect(self.email_service.load_report_dialog)
+        top_bar.addWidget(self.ctx.load_button)
 
         main_layout.addLayout(top_bar)
 
         # === Панель фильтров ===
-        self.filter_group = QGroupBox("📊 Фильтры данных")
+        self.ctx.filter_group = QGroupBox("📊 Фильтры данных")
         filter_layout = QVBoxLayout()
         filter_layout.setSpacing(8)
 
         row1_layout = QHBoxLayout()
         row1_layout.setSpacing(10)
 
-        self.silo_combo = QComboBox()
-        self.silo_combo.setMinimumWidth(180)
-        self.silo_combo.currentIndexChanged.connect(self.populate_suspension_filter)
+        self.ctx.silo_combo = QComboBox()
+        self.ctx.silo_combo.setMinimumWidth(180)
+        self.ctx.silo_combo.currentIndexChanged.connect(self.email_service.populate_suspension_filter)
 
-        self.suspension_combo = QComboBox()
-        self.suspension_combo.setMinimumWidth(140)
+        self.ctx.suspension_combo = QComboBox()
+        self.ctx.suspension_combo.setMinimumWidth(140)
 
-        self.plot_type_combo = QComboBox()
-        self.plot_type_combo.addItems(["По датчикам", "Средняя температура"])
-        self.plot_type_combo.setMinimumWidth(160)
+        self.ctx.plot_type_combo = QComboBox()
+        self.ctx.plot_type_combo.addItems(["По датчикам", "Средняя температура"])
+        self.ctx.plot_type_combo.setMinimumWidth(160)
 
-        self.temp_threshold_spinbox = QDoubleSpinBox()
-        self.temp_threshold_spinbox.setValue(self.temp_threshold)
-        self.temp_threshold_spinbox.setSuffix(" °C")
-        self.temp_threshold_spinbox.setRange(0, 100)
-        self.temp_threshold_spinbox.setMinimumWidth(90)
-        self.temp_threshold_spinbox.valueChanged.connect(self.on_threshold_changed)
+        self.ctx.temp_threshold_spinbox = QDoubleSpinBox()
+        self.ctx.temp_threshold_spinbox.setValue(self.ctx.temp_threshold)
+        self.ctx.temp_threshold_spinbox.setSuffix(" °C")
+        self.ctx.temp_threshold_spinbox.setRange(0, 100)
+        self.ctx.temp_threshold_spinbox.setMinimumWidth(90)
+        self.ctx.temp_threshold_spinbox.valueChanged.connect(self._on_threshold_changed)
 
         row1_layout.addWidget(QLabel("Силос:"))
-        row1_layout.addWidget(self.silo_combo)
+        row1_layout.addWidget(self.ctx.silo_combo)
         row1_layout.addWidget(QLabel("Подвеска:"))
-        row1_layout.addWidget(self.suspension_combo)
+        row1_layout.addWidget(self.ctx.suspension_combo)
         row1_layout.addWidget(QLabel("Тип графика:"))
-        row1_layout.addWidget(self.plot_type_combo)
+        row1_layout.addWidget(self.ctx.plot_type_combo)
         row1_layout.addWidget(QLabel("Порог t°:"))
-        row1_layout.addWidget(self.temp_threshold_spinbox)
+        row1_layout.addWidget(self.ctx.temp_threshold_spinbox)
         row1_layout.addStretch()
 
         row2_layout = QHBoxLayout()
         row2_layout.setSpacing(10)
 
-        self.start_date_edit = QDateEdit(calendarPopup=True)
-        self.start_date_edit.setDate(QDate.currentDate().addMonths(-1))
-        self.start_date_edit.setCalendarPopup(True)
-        self.start_date_edit.setMinimumWidth(120)
+        self.ctx.start_date_edit = QDateEdit(calendarPopup=True)
+        self.ctx.start_date_edit.setDate(QDate.currentDate().addMonths(-1))
+        self.ctx.start_date_edit.setCalendarPopup(True)
+        self.ctx.start_date_edit.setMinimumWidth(120)
 
-        self.end_date_edit = QDateEdit(calendarPopup=True)
-        self.end_date_edit.setDate(QDate.currentDate())
-        self.end_date_edit.setCalendarPopup(True)
-        self.end_date_edit.setMinimumWidth(120)
+        self.ctx.end_date_edit = QDateEdit(calendarPopup=True)
+        self.ctx.end_date_edit.setDate(QDate.currentDate())
+        self.ctx.end_date_edit.setCalendarPopup(True)
+        self.ctx.end_date_edit.setMinimumWidth(120)
 
-        if self.config.get("start_date"):
-            self.start_date_edit.setDate(QDate.fromString(self.config["start_date"], "yyyy-MM-dd"))
-        if self.config.get("end_date"):
-            self.end_date_edit.setDate(QDate.fromString(self.config["end_date"], "yyyy-MM-dd"))
+        if self.ctx.config.get("start_date"):
+            self.ctx.start_date_edit.setDate(QDate.fromString(self.ctx.config["start_date"], "yyyy-MM-dd"))
+        if self.ctx.config.get("end_date"):
+            self.ctx.end_date_edit.setDate(QDate.fromString(self.ctx.config["end_date"], "yyyy-MM-dd"))
 
-        self.apply_button = QPushButton("✅ Применить фильтры")
-        self.apply_button.setMinimumWidth(160)
-        self.apply_button.setStyleSheet("font-weight: bold; background-color: #a6e3a1; color: #1e1e2e;")
-        self.apply_button.clicked.connect(self.update_data_view)
+        self.ctx.apply_button = QPushButton("✅ Применить фильтры")
+        self.ctx.apply_button.setMinimumWidth(160)
+        self.ctx.apply_button.setStyleSheet("font-weight: bold; background-color: #a6e3a1; color: #1e1e2e;")
+        self.ctx.apply_button.clicked.connect(self.ctx.hotspots_tab.update_data_view)
 
         row2_layout.addWidget(QLabel("С:"))
-        row2_layout.addWidget(self.start_date_edit)
+        row2_layout.addWidget(self.ctx.start_date_edit)
         row2_layout.addWidget(QLabel("По:"))
-        row2_layout.addWidget(self.end_date_edit)
+        row2_layout.addWidget(self.ctx.end_date_edit)
         row2_layout.addWidget(QLabel("Период:"))
 
-        self.date_range_label = QLabel("📅 Данные: —")
-        self.date_range_label.setStyleSheet("font-size: 11px; color: #6c7086; padding: 4px;")
-        row2_layout.addWidget(self.date_range_label)
+        self.ctx.date_range_label = QLabel("📅 Данные: —")
+        self.ctx.date_range_label.setStyleSheet("font-size: 11px; color: #6c7086; padding: 4px;")
+        row2_layout.addWidget(self.ctx.date_range_label)
 
         period_layout = QHBoxLayout()
         period_layout.setSpacing(6)
-        self.period_buttons = []
+        self.ctx.period_buttons = []
         periods = [
             ("1 день", 1),
             ("3 дня", 3),
@@ -343,75 +318,89 @@ class ThermometryApp(
             btn = QPushButton(text)
             btn.setObjectName("periodButton")
             btn.setCheckable(True)
-            btn.clicked.connect(lambda checked, d=days: self.set_period(d))
+            btn.clicked.connect(lambda checked, d=days: self.email_service.set_period(d))
             period_layout.addWidget(btn)
-            self.period_buttons.append(btn)
+            self.ctx.period_buttons.append(btn)
 
         row2_layout.addLayout(period_layout)
         row2_layout.addStretch()
-        row2_layout.addWidget(self.apply_button)
+        row2_layout.addWidget(self.ctx.apply_button)
 
         filter_layout.addLayout(row1_layout)
         filter_layout.addLayout(row2_layout)
-        self.filter_group.setLayout(filter_layout)
-        main_layout.addWidget(self.filter_group)
+        self.ctx.filter_group.setLayout(filter_layout)
+        main_layout.addWidget(self.ctx.filter_group)
 
         # === Статус бар ===
-        self.status_label = QLabel("✅ Готово")
-        self.status_label.setObjectName("statusLabel")
-        self.status_label.setStyleSheet("font-size: 12px; padding: 4px; color: #a6e3a1;")
-        main_layout.addWidget(self.status_label)
+        self.ctx.status_label = QLabel("✅ Готово")
+        self.ctx.status_label.setObjectName("statusLabel")
+        self.ctx.status_label.setStyleSheet("font-size: 12px; padding: 4px; color: #a6e3a1;")
+        main_layout.addWidget(self.ctx.status_label)
 
-        # === Основные вкладки ===
-        self.main_tabs = QTabWidget()
+        # === Создание вкладок ===
+        self.ctx.main_tabs = QTabWidget()
 
-        tab_creators = [
-            ("🔥 Горячие точки", self.create_hotspots_tab),
-            ("📈 Графики по силосам", self.create_silo_graphs_tab),
-            ("📊 Мониторинг изменений", self.create_monitoring_tab),
-            ("⚠️ Обрывы", self.create_breaks_tab),
-            ("🏭 3D Модель", self.create_3d_model_tab),
-            ("🔥 Самые горячие датчики", self.create_hottest_sensors_tab),
+        # Создаём вкладки
+        tab_defs = [
+            ("🔥 Горячие точки", HotspotsTab, "hotspots_tab"),
+            ("📈 Графики по силосам", SiloGraphsTab, "silo_graphs_tab"),
+            ("📊 Мониторинг изменений", MonitoringTab, "monitoring_tab"),
+            ("⚠️ Обрывы", BreaksTab, "breaks_tab"),
+            ("🏭 3D Модель", Model3DTab, "model_3d_tab"),
+            ("🔥 Самые горячие датчики", HottestSensorsTab, "hottest_sensors_tab"),
         ]
 
-        for tab_name, creator in tab_creators:
+        for tab_name, tab_cls, ctx_key in tab_defs:
             try:
                 logging.info(f"Создание вкладки: {tab_name}")
-                self.main_tabs.addTab(creator(), tab_name)
+                tab = tab_cls(self.ctx)
+                setattr(self.ctx, ctx_key, tab)
+                self.ctx.main_tabs.addTab(tab, tab_name)
                 logging.info(f"Вкладка {tab_name} создана успешно")
             except Exception as e:
                 logging.error(f"Ошибка создания вкладки {tab_name}: {e}")
                 logging.error(traceback.format_exc())
-                # Создать заглушку
                 err_widget = QWidget()
                 err_layout = QVBoxLayout()
                 err_layout.addWidget(QLabel(f"⚠️ Ошибка загрузки вкладки: {e}"))
                 err_widget.setLayout(err_layout)
-                self.main_tabs.addTab(err_widget, tab_name)
+                self.ctx.main_tabs.addTab(err_widget, tab_name)
 
-        self.main_tabs.currentChanged.connect(self.on_tab_changed)
-        self.main_tabs.tabBar().setVisible(False)
-        main_layout.addWidget(self.main_tabs, 1)
+        self.ctx.main_tabs.currentChanged.connect(self._on_tab_changed)
+        self.ctx.main_tabs.tabBar().setVisible(False)
+        main_layout.addWidget(self.ctx.main_tabs, 1)
 
-        if self.config.get("active_tab"):
-            self.main_tabs.setCurrentIndex(self.config["active_tab"])
+        if self.ctx.config.get("active_tab"):
+            self.ctx.main_tabs.setCurrentIndex(self.ctx.config["active_tab"])
         else:
-            self.on_tab_changed(0)
+            self._on_tab_changed(0)
 
         self.setStyleSheet(STYLESHEET)
         self.setLayout(main_layout)
 
-    def on_tab_changed(self, index):
-        """Скрыть фильтры на вкладке 3D (индекс 4)"""
-        if hasattr(self, 'filter_group'):
-            self.filter_group.setVisible(index != 4)
+    def _on_tab_changed(self, index):
+        self.ctx.filter_group.setVisible(index != 4)
+
+    def _on_tabs_combo_changed(self, index):
+        if self.ctx.main_tabs:
+            self.ctx.main_tabs.setCurrentIndex(index)
+
+    def _on_threshold_changed(self, value):
+        self.ctx.hotspots_tab.update_data_view()
+
+    def dragEnterEvent(self, event: QDragEnterEvent):
+        if event.mimeData().hasUrls():
+            event.acceptProposedAction()
+
+    def dropEvent(self, event: QDropEvent):
+        file_paths = [url.toLocalFile() for url in event.mimeData().urls()]
+        if file_paths:
+            self.email_service.load_reports_from_paths(file_paths)
 
 
-# === FullScreen3DDialog (нужен для model_3d_tab) ===
+# === FullScreen3DDialog ===
 
 class FullScreen3DDialog(QDialog):
-    """Диалог полноэкранной 3D визуализации силоса"""
-
     def __init__(self, parent, silo, start_date, end_date):
         super().__init__(parent)
         self.setWindowTitle(f"🏭 3D Модель: {silo}")
@@ -421,7 +410,7 @@ class FullScreen3DDialog(QDialog):
         self.silo = silo
         self.start_date = start_date
         self.end_date = end_date
-        self.db_conn = parent.db_conn
+        self.db_conn = parent.ctx.db_conn if hasattr(parent, 'ctx') else parent.db_conn
 
         self.init_ui()
         self.load_3d_model()
@@ -464,7 +453,6 @@ class FullScreen3DDialog(QDialog):
             self.info_label.setText(f"⚠️ Ошибка: {e}")
 
     def closeEvent(self, event):
-        """Быстрое закрытие 3D диалога"""
         if hasattr(self, 'plotly_widget') and self.plotly_widget:
             if hasattr(self.plotly_widget, 'cleanup'):
                 self.plotly_widget.cleanup()
@@ -479,14 +467,12 @@ class FullScreen3DDialog(QDialog):
 
 
 if __name__ == '__main__':
-    # Настроить логирование ДО создания приложения
     log_file = setup_global_logging()
 
     try:
         logging.info("Создание QApplication...")
         app = QApplication(sys.argv)
 
-        # Установить глобальный обработчик исключений (после создания QApplication)
         exc_handler = PyQtExceptionHandler()
         exc_handler.install()
 
