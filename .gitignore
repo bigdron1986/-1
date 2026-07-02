@@ -3,6 +3,16 @@ __pycache__/
 *.pyo
 .env
 .env.local
+*.png
+*.jpg
+*.jpeg
+*.bmp
+*.ico
+*.db
+*.sqlite
+*.csv
+*.xlsx
+.pytest_cache/
 venv/
 .venv/
 dist/
