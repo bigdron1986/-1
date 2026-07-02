@@ -171,7 +171,7 @@ class EmailFileMixin:
                 'imap_server': self.user_settings.get('email_imap_server', 'imap.yandex.ru'),
                 'imap_port': int(self.user_settings.get('email_imap_port', '993')),
                 'sender_email': self.user_settings.get('email_sender', 'ams10@aminosib.ru'),
-                'days_back': int(self.user_settings.get('email_days_back', '30'))
+                'days_back': int(self.user_settings.get('email_days_back', '365'))
             }
 
             dialog = EmailSettingsDialog(self, settings)
@@ -184,6 +184,7 @@ class EmailFileMixin:
                 set_user_setting(self.db_conn, 'email_imap_port', str(new_settings['imap_port']))
                 set_user_setting(self.db_conn, 'email_sender', new_settings['sender_email'])
                 set_user_setting(self.db_conn, 'email_days_back', str(new_settings['days_back']))
+                set_user_setting(self.db_conn, 'email_sender', new_settings['sender_email'])
 
                 self.user_settings.update({
                     'email_login': new_settings['login'],
@@ -207,7 +208,7 @@ class EmailFileMixin:
                 'imap_server': self.user_settings.get('email_imap_server', 'imap.yandex.ru'),
                 'imap_port': int(self.user_settings.get('email_imap_port', '993')),
                 'sender_email': self.user_settings.get('email_sender', 'ams10@aminosib.ru'),
-                'days_back': int(self.user_settings.get('email_days_back', '30'))
+                'days_back': int(self.user_settings.get('email_days_back', '365'))
             }
 
             dialog = EmailDownloadDialog(self, email_settings)

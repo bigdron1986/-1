@@ -78,13 +78,15 @@ class EmailReportClient:
                 result += content
         return result
     
-    def fetch_reports(self, sender_email='ams10@aminosib.ru', days_back=365):
+    def fetch_reports(self, sender_email='ams10@aminosib.ru', days_back=365, existing_dates=None):
         """
-        Получение отчетов с почты
+        Получение отчетов с почты.
+        Если дата файла уже есть в existing_dates — файл пропускается (не скачивается).
         
         Args:
             sender_email: Email отправителя (по умолчанию ams10@aminosib.ru)
-            days_back: За какой период искать письма (дней)
+            days_back: За какой период искать письма (дней). 0 = все письма.
+            existing_dates: set строк YYYY-MM-DD — даты, уже загруженные в БД
         
         Returns:
             dict: {
@@ -94,6 +96,7 @@ class EmailReportClient:
                 'attachments': list[dict]
             }
         """
+        import re
         result = {
             'success': False,
             'message': '',
@@ -108,12 +111,14 @@ class EmailReportClient:
                 return result
         
         try:
-            date_from = datetime.now() - timedelta(days=days_back)
-            # IMAP требует формат даты: dd-MMM-yy (например, 30-Mar-26)
-            date_from_str = date_from.strftime('%d-%b-%Y').upper()
-
-            # Использовать упрощённый поиск - все письма от отправителя
-            search_criteria = f'(FROM "{sender_email}")'
+            # Поиск писем от отправителя с фильтром по дате
+            if days_back > 0:
+                date_from = datetime.now() - timedelta(days=days_back)
+                date_from_str = date_from.strftime('%d-%b-%Y').upper()
+                search_criteria = f'(FROM "{sender_email}" SINCE {date_from_str})'
+            else:
+                search_criteria = f'(FROM "{sender_email}")'
+            
             status, messages = self.connection.search(None, search_criteria)
             
             if status != 'OK':
@@ -144,17 +149,32 @@ class EmailReportClient:
                     attachments = self._extract_attachments(email_message)
                     
                     for attachment in attachments:
-                        if attachment['filename'].startswith('termo_') and attachment['filename'].endswith('.xlsx'):
-                            attachment['email_subject'] = subject
-                            attachment['email_sender'] = sender
-                            attachment['email_date'] = date_str
-                            result['attachments'].append(attachment)
+                        fname = attachment['filename']
+                        if not (fname.startswith('termo_') and fname.endswith('.xlsx')):
+                            continue
+
+                        # Проверка по дате в имени файла
+                        if existing_dates:
+                            date_match = re.search(r'(\d{2}\.\d{2}\.\d{4})', fname)
+                            if date_match:
+                                from datetime import datetime as dt
+                                try:
+                                    file_date = dt.strptime(date_match.group(1), '%d.%m.%Y').strftime('%Y-%m-%d')
+                                    if file_date in existing_dates:
+                                        continue
+                                except ValueError:
+                                    pass
+
+                        attachment['email_subject'] = subject
+                        attachment['email_sender'] = sender
+                        attachment['email_date'] = date_str
+                        result['attachments'].append(attachment)
                     
                 except Exception as e:
                     continue
             
             result['success'] = True
-            result['message'] = f"Найдено {len(result['attachments'])} вложений termo_*.xlsx"
+            result['message'] = f"Найдено {len(result['attachments'])} новых вложений termo_*.xlsx"
             
         except Exception as e:
             result['message'] = f"Ошибка: {str(e)}"

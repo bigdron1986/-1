@@ -200,9 +200,10 @@ class EmailReportWorker(QThread):
     finished = pyqtSignal(dict)  # Результат
     error = pyqtSignal(str)  # Ошибка
     
-    def __init__(self, email_settings):
+    def __init__(self, email_settings, existing_dates=None):
         super().__init__()
         self.email_settings = email_settings
+        self.existing_dates = existing_dates or set()
     
     def run(self):
         try:
@@ -216,11 +217,12 @@ class EmailReportWorker(QThread):
                 debug=True
             )
             
-            # Поиск отчетов
-            self.progress.emit("🔍 Поиск писем...")
+            # Поиск отчётов (только новых)
+            self.progress.emit("🔍 Поиск новых писем...")
             result = client.fetch_reports(
                 sender_email=self.email_settings.get('sender_email', 'ams10@aminosib.ru'),
-                days_back=self.email_settings.get('days_back', 30)
+                days_back=self.email_settings.get('days_back', 365),
+                existing_dates=self.existing_dates
             )
             
             if not result['success']:
@@ -377,9 +379,19 @@ class EmailDownloadDialog(QDialog):
         self.files_list.clear()
         
         self.log("Инициализация загрузки...")
-        
+
+        # Собираем даты, уже существующие в БД — чтобы не качать их снова
+        existing_dates = set()
+        if self.parent_window and hasattr(self.parent_window, 'db_conn') and self.parent_window.db_conn:
+            try:
+                from database import get_all_dates
+                existing_dates = set(get_all_dates(self.parent_window.db_conn))
+                self.log(f"В БД уже есть {len(existing_dates)} дат")
+            except Exception as e:
+                self.log(f"Не удалось получить список дат из БД: {e}")
+
         # Создание и запуск рабочего потока
-        self.worker = EmailReportWorker(self.email_settings)
+        self.worker = EmailReportWorker(self.email_settings, existing_dates=existing_dates)
         self.worker.progress.connect(self.on_progress)
         self.worker.log.connect(self.log)
         self.worker.finished.connect(self.on_finished)
