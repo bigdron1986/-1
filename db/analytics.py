@@ -467,7 +467,6 @@ def get_previous_leader_for_silo(conn, silo, before_date):
 
 
 def check_leader_changes_for_period(conn, start_date, end_date, threshold=15):
-    from datetime import datetime
     cur = conn.cursor()
     cur.execute("""
         SELECT DISTINCT date FROM readings

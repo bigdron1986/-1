@@ -4,7 +4,6 @@
 import imaplib
 import email
 from email.header import decode_header
-import base64
 from datetime import datetime, timedelta
 import os
 import tempfile

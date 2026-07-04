@@ -1,9 +1,7 @@
 # -*- coding: utf-8 -*-
 """Миксин: Email + File loading + Shared utilities"""
 
-import os
 import logging
-from datetime import datetime, timedelta
 from PyQt6.QtWidgets import (QWidget, QVBoxLayout, QPushButton, QLabel, QHBoxLayout,
                              QGroupBox, QSpinBox, QMessageBox, QFileDialog, QDialog,
                              QLineEdit, QTextEdit, QProgressBar, QFormLayout, QCheckBox)

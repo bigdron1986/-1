@@ -9,7 +9,6 @@ from PyQt6.QtCore import QUrl, Qt
 import tempfile
 import os
 import logging
-import math
 
 logger = logging.getLogger(__name__)
 

@@ -471,7 +471,6 @@ class EmailDownloadDialog(QDialog):
                             new_dates.append(db_date)
                     except Exception as e:
                         self.log(f"⚠️ Ошибка парсинга даты из {filename}: {e}")
-                        pass
 
                 # Парсинг XLSX файла
                 report_date, readings = parse_thermometry_file(file_path)

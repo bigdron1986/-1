@@ -132,7 +132,7 @@ class MonitoringTab(QWidget):
             suspension = int(susp_item.text())
             sensor = int(sens_item.text())
 
-            from datetime import datetime, timedelta
+            from datetime import timedelta
             end_date = self.ctx.end_date_edit.date().toPyDate()
             start_date = end_date - timedelta(days=7)
 
