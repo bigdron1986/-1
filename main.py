@@ -14,8 +14,8 @@ from PyQt6.QtWidgets import (QApplication, QWidget, QVBoxLayout, QPushButton, QL
                              QHBoxLayout, QComboBox, QDateEdit, QTableWidget, QTableWidgetItem,
                              QGroupBox, QFormLayout, QAbstractItemView, QDoubleSpinBox, QSpinBox,
                              QMessageBox, QGridLayout, QSpacerItem, QSizePolicy, QSplitter, QTabWidget,
-                             QCheckBox, QScrollArea, QFrame, QToolBar, QDialog)
-from PyQt6.QtCore import QDate, Qt, QMimeData, QTimer, QUrl
+                              QCheckBox, QScrollArea, QFrame, QToolBar)
+from PyQt6.QtCore import QDate, Qt, QMimeData, QTimer
 from PyQt6.QtGui import QColor, QDragEnterEvent, QDropEvent, QAction
 
 from database import (setup_database, get_all_user_settings, set_user_setting)
@@ -396,75 +396,6 @@ class ThermometryApp(QWidget):
         file_paths = [url.toLocalFile() for url in event.mimeData().urls()]
         if file_paths:
             self.email_service.load_reports_from_paths(file_paths)
-
-
-# === FullScreen3DDialog ===
-
-class FullScreen3DDialog(QDialog):
-    def __init__(self, parent, silo, start_date, end_date):
-        super().__init__(parent)
-        self.setWindowTitle(f"🏭 3D Модель: {silo}")
-        self.setMinimumSize(1200, 800)
-        self.showMaximized()
-
-        self.silo = silo
-        self.start_date = start_date
-        self.end_date = end_date
-        self.db_conn = parent.ctx.db_conn if hasattr(parent, 'ctx') else parent.db_conn
-
-        self.init_ui()
-        self.load_3d_model()
-
-    def init_ui(self):
-        layout = QVBoxLayout()
-        layout.setContentsMargins(10, 10, 10, 10)
-
-        self.info_label = QLabel(f"Загрузка 3D модели: {self.silo}...")
-        self.info_label.setStyleSheet("font-size: 14px; color: #89b4fa; padding: 8px;")
-        layout.addWidget(self.info_label)
-
-        if PLOTLY_AVAILABLE:
-            self.plotly_widget = PlotlyWidget()
-            layout.addWidget(self.plotly_widget, 1)
-        else:
-            from plotly_widget import PlotlyPlaceholder
-            layout.addWidget(PlotlyPlaceholder())
-
-        close_btn = QPushButton("Закрыть")
-        close_btn.setStyleSheet("background-color: #45475a; padding: 10px 20px; font-size: 14px;")
-        close_btn.clicked.connect(self.accept)
-        layout.addWidget(close_btn)
-
-        self.setLayout(layout)
-
-    def load_3d_model(self):
-        from silo_3d import create_silo_3d, get_silo_data_with_errors
-        try:
-            df = get_silo_data_with_errors(self.db_conn, self.silo, self.start_date, self.end_date)
-            if df.empty:
-                self.info_label.setText(f"⚠️ Нет данных для {self.silo}")
-                return
-
-            fig = create_silo_3d(df, self.silo, date=None, suspension_range=None)
-            if PLOTLY_AVAILABLE:
-                self.plotly_widget.load_plotly_figure(fig)
-            self.info_label.setText(f"✅ {self.silo} | {len(df)} записей | {df['date'].nunique()} дат")
-        except Exception as e:
-            self.info_label.setText(f"⚠️ Ошибка: {e}")
-
-    def closeEvent(self, event):
-        if hasattr(self, 'plotly_widget') and self.plotly_widget:
-            if hasattr(self.plotly_widget, 'cleanup'):
-                self.plotly_widget.cleanup()
-            if hasattr(self.plotly_widget, 'browser'):
-                browser = self.plotly_widget.browser
-                browser.blockSignals(True)
-                browser.setUrl(QUrl('about:blank'))
-                if browser.page():
-                    browser.page().deleteLater()
-                browser.deleteLater()
-        event.accept()
-
 
 if __name__ == '__main__':
     log_file = setup_global_logging()

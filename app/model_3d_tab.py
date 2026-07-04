@@ -2,8 +2,8 @@
 """Миксин: вкладка 3D Модель"""
 
 from PyQt6.QtWidgets import (QWidget, QVBoxLayout, QPushButton, QLabel, QHBoxLayout,
-                             QGroupBox, QComboBox, QDateEdit, QMessageBox)
-from PyQt6.QtCore import QDate
+                             QGroupBox, QComboBox, QDateEdit, QMessageBox, QDialog)
+from PyQt6.QtCore import QDate, QUrl
 from database import get_unique_silos, get_last_n_dates
 from silo_3d import create_silo_3d, get_silo_data_with_errors
 
@@ -12,6 +12,71 @@ try:
     PLOTLY_AVAILABLE = True
 except ImportError:
     PLOTLY_AVAILABLE = False
+
+
+class FullScreen3DDialog(QDialog):
+    def __init__(self, parent, silo, start_date, end_date):
+        super().__init__(parent)
+        self.setWindowTitle(f"🏭 3D Модель: {silo}")
+        self.setMinimumSize(1200, 800)
+        self.showMaximized()
+
+        self.silo = silo
+        self.start_date = start_date
+        self.end_date = end_date
+        self.db_conn = parent.ctx.db_conn if hasattr(parent, 'ctx') else parent.db_conn
+
+        self.init_ui()
+        self.load_3d_model()
+
+    def init_ui(self):
+        layout = QVBoxLayout()
+        layout.setContentsMargins(10, 10, 10, 10)
+
+        self.info_label = QLabel(f"Загрузка 3D модели: {self.silo}...")
+        self.info_label.setStyleSheet("font-size: 14px; color: #89b4fa; padding: 8px;")
+        layout.addWidget(self.info_label)
+
+        if PLOTLY_AVAILABLE:
+            self.plotly_widget = PlotlyWidget()
+            layout.addWidget(self.plotly_widget, 1)
+        else:
+            from plotly_widget import PlotlyPlaceholder
+            layout.addWidget(PlotlyPlaceholder())
+
+        close_btn = QPushButton("Закрыть")
+        close_btn.setStyleSheet("background-color: #45475a; padding: 10px 20px; font-size: 14px;")
+        close_btn.clicked.connect(self.accept)
+        layout.addWidget(close_btn)
+
+        self.setLayout(layout)
+
+    def load_3d_model(self):
+        try:
+            df = get_silo_data_with_errors(self.db_conn, self.silo, self.start_date, self.end_date)
+            if df.empty:
+                self.info_label.setText(f"⚠️ Нет данных для {self.silo}")
+                return
+
+            fig = create_silo_3d(df, self.silo, date=None, suspension_range=None)
+            if PLOTLY_AVAILABLE:
+                self.plotly_widget.load_plotly_figure(fig)
+            self.info_label.setText(f"✅ {self.silo} | {len(df)} записей | {df['date'].nunique()} дат")
+        except Exception as e:
+            self.info_label.setText(f"⚠️ Ошибка: {e}")
+
+    def closeEvent(self, event):
+        if hasattr(self, 'plotly_widget') and self.plotly_widget:
+            if hasattr(self.plotly_widget, 'cleanup'):
+                self.plotly_widget.cleanup()
+            if hasattr(self.plotly_widget, 'browser'):
+                browser = self.plotly_widget.browser
+                browser.blockSignals(True)
+                browser.setUrl(QUrl('about:blank'))
+                if browser.page():
+                    browser.page().deleteLater()
+                browser.deleteLater()
+        event.accept()
 
 
 class Model3DTab(QWidget):
@@ -158,7 +223,6 @@ class Model3DTab(QWidget):
             self.silo_3d_info.setText(f"⚠️ Ошибка: {e}")
 
     def open_3d_fullscreen(self):
-        from main import FullScreen3DDialog
         silo = self.silo_3d_combo.currentText()
         start_date = self.silo_3d_start_date.date().toString("yyyy-MM-dd")
         end_date = self.silo_3d_end_date.date().toString("yyyy-MM-dd")
