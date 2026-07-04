@@ -249,7 +249,7 @@ class BreaksTab(QWidget):
         self.setLayout(layout)
 
     def populate_breaks_table(self, silo, start_date, end_date):
-        all_data = get_readings(self.ctx.db_conn, silo=silo, start_date=None, end_date=None)
+        all_data = get_readings(self.ctx.db_conn, silo=silo, start_date=start_date, end_date=end_date)
 
         sensor_data = {}
         for row in all_data:

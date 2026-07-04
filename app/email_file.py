@@ -67,14 +67,11 @@ class EmailFileService:
         today = QDate.currentDate()
 
         if days == 0:
-            all_data = get_readings(self.ctx.db_conn)
-            if all_data:
-                dates = [row[4] for row in all_data if row[4]]
-                if dates:
-                    min_date = QDate.fromString(min(dates), "yyyy-MM-dd")
-                    self.ctx.start_date_edit.setDate(min_date)
-                else:
-                    self.ctx.start_date_edit.setDate(today.addYears(-1))
+            from database import get_date_range
+            min_date_str, _ = get_date_range(self.ctx.db_conn)
+            if min_date_str:
+                min_date = QDate.fromString(min_date_str, "yyyy-MM-dd")
+                self.ctx.start_date_edit.setDate(min_date)
             else:
                 self.ctx.start_date_edit.setDate(today.addYears(-1))
             self.ctx.end_date_edit.setDate(today)

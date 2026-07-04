@@ -1,6 +1,6 @@
 import logging
 from db.common import OPERATIONAL_SILOS, OPERATIONAL_PLACEHOLDERS
-from db.readings import (get_silo_data_for_date, get_previous_date)
+from db.readings import get_previous_date
 
 
 def get_average_temp_by_silo(conn, silo, start_date=None, end_date=None):
@@ -258,48 +258,36 @@ def get_all_silos_with_data():
             conn.close()
 
 
-def get_temperature_delta_for_silo(conn, silo, date):
-    current_data = get_silo_data_for_date(conn, silo, date)
-    current_data = {k: v for k, v in current_data.items() if v != 71.2}
-
-    if not current_data:
+def get_all_silos_delta_for_date(conn, date):
+    cur = conn.cursor()
+    cur.execute("""
+        SELECT silo, suspension, sensor, temperature FROM readings
+        WHERE date = ? AND temperature != 71.2
+    """, (date,))
+    current_rows = cur.fetchall()
+    if not current_rows:
         return {}
 
     prev_date = get_previous_date(conn, date)
-    if not prev_date:
-        return {key: {'current': val, 'previous': None, 'delta': 0.0}
-                for key, val in current_data.items()}
-
-    previous_data = get_silo_data_for_date(conn, silo, prev_date)
-    previous_data = {k: v for k, v in previous_data.items() if v != 71.2}
+    prev_map = {}
+    if prev_date:
+        cur.execute("""
+            SELECT silo, suspension, sensor, temperature FROM readings
+            WHERE date = ? AND temperature != 71.2
+        """, (prev_date,))
+        for row in cur.fetchall():
+            prev_map[(row[0], row[1], row[2])] = row[3]
 
     result = {}
-    for key, current_temp in current_data.items():
-        prev_temp = previous_data.get(key)
-        if prev_temp is not None:
-            delta = current_temp - prev_temp
-        else:
-            delta = 0.0
-        result[key] = {
-            'current': current_temp,
-            'previous': prev_temp,
-            'delta': delta,
-            'prev_date': prev_date
+    for row in current_rows:
+        silo, susp, sensor, temp = row
+        key = (silo, susp, sensor)
+        prev_temp = prev_map.get(key)
+        delta = (temp - prev_temp) if prev_temp is not None else 0.0
+        result.setdefault(silo, {}).setdefault(susp, {})[sensor] = {
+            'current': temp, 'previous': prev_temp,
+            'delta': delta, 'prev_date': prev_date
         }
-    return result
-
-
-def get_all_silos_delta_for_date(conn, date):
-    result = {}
-    silos = get_silo_list(conn, exclude_operational=False)
-    for silo in silos:
-        delta_data = get_temperature_delta_for_silo(conn, silo, date)
-        if delta_data:
-            result[silo] = {}
-            for (susp, sensor), data in delta_data.items():
-                if susp not in result[silo]:
-                    result[silo][susp] = {}
-                result[silo][susp][sensor] = data
     return result
 
 
