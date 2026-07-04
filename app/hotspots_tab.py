@@ -19,7 +19,7 @@ from database import (get_readings, get_sensor_history, get_sensor_history_with_
                       get_hot_spots_for_silo, get_hottest_sensors_by_silo, get_all_sensors_for_silo,
                       get_all_silos_delta_for_date, get_date_range_for_slider, get_last_n_dates,
                       get_hottest_sensor_for_date, get_hottest_sensor_for_silo_date, get_all_silos_leaders_for_date,
-                      get_previous_date_with_data, get_sensor_temperature_on_date,
+                      get_previous_date, get_sensor_temperature_on_date,
                       get_leader_change_info, has_comment, has_any_comment, get_comment,
                       get_unique_silos, insert_readings, check_date_exists, delete_readings_for_date)
 from plotter import PlotWidget, DEFAULT_PLOT_COLORS
@@ -256,7 +256,7 @@ class HotspotsTab(QWidget):
             return
 
         date_format = "%d.%m.%Y" if self.ctx.date_format_with_year else "%d.%m"
-        prev_date = get_previous_date_with_data(self.ctx.db_conn, date)
+        prev_date = get_previous_date(self.ctx.db_conn, date)
 
         self.hot_spots_table.setRowCount(len(hot_spots))
         for row_idx, row_data in enumerate(hot_spots):

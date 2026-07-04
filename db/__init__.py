@@ -6,7 +6,7 @@ from db.readings import (
     get_unique_silos, get_suspensions_for_silo, get_date_range, get_available_dates,
     check_date_exists, get_all_dates, get_last_n_dates, delete_readings_for_date,
     get_silo_data_for_date, get_previous_date, get_date_range_for_slider,
-    get_sensor_temperature_on_date, get_previous_date_with_data,
+    get_sensor_temperature_on_date, get_previous_date,
 )
 from db.analytics import (
     get_average_temp_by_silo, get_average_temp_by_suspension,

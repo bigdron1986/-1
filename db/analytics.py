@@ -1,7 +1,6 @@
 import logging
 from db.common import OPERATIONAL_SILOS, OPERATIONAL_PLACEHOLDERS
-from db.readings import (get_silo_data_for_date, get_previous_date,
-                          get_previous_date_with_data)
+from db.readings import (get_silo_data_for_date, get_previous_date)
 
 
 def get_average_temp_by_silo(conn, silo, start_date=None, end_date=None):
@@ -371,7 +370,7 @@ def get_leader_change_info(conn, current_date, threshold=15):
     if not current_hottest:
         return None
 
-    prev_date = get_previous_date_with_data(conn, current_date)
+    prev_date = get_previous_date(conn, current_date)
     if not prev_date:
         return {'current': current_hottest, 'previous': None, 'changed': False}
 

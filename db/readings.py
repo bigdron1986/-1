@@ -175,12 +175,4 @@ def get_sensor_temperature_on_date(conn, silo, suspension, sensor, date):
     return result[0] if result else None
 
 
-def get_previous_date_with_data(conn, date):
-    cur = conn.cursor()
-    cur.execute("""
-        SELECT MAX(date)
-        FROM readings
-        WHERE date < ?
-    """, (date,))
-    result = cur.fetchone()
-    return result[0] if result else None
+

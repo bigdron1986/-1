@@ -7,7 +7,7 @@ from PyQt6.QtWidgets import (QWidget, QVBoxLayout, QPushButton, QLabel, QHBoxLay
                              QGroupBox, QSpinBox, QMessageBox)
 from PyQt6.QtCore import QTimer
 from database import (get_available_dates, get_all_silos_delta_for_date,
-                      get_date_range_for_slider, get_previous_date_with_data,
+                       get_date_range_for_slider, get_previous_date,
                       get_all_silos_leaders_for_date, has_any_comment,
                       get_last_processed_leader_date, check_leader_changes_for_period,
                       get_date_range)
@@ -211,7 +211,7 @@ class HottestSensorsTab(QWidget):
             print(f"Комментарии: {comments}")
 
             current_leaders = get_all_silos_leaders_for_date(self.ctx.db_conn, selected_date, threshold)
-            prev_date = get_previous_date_with_data(self.ctx.db_conn, selected_date)
+            prev_date = get_previous_date(self.ctx.db_conn, selected_date)
             previous_leaders = {}
             if prev_date:
                 previous_leaders = get_all_silos_leaders_for_date(self.ctx.db_conn, prev_date, threshold)
